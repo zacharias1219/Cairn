@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Cairn design tokens. Warm stone neutrals, a moss accent, and four verdict
+   colours that mean the same thing everywhere: approve, revise, block, escalate. */
+:root {
+  --bg: 250 249 246;
+  --surface: 255 255 255;
+  --subtle: 245 244 240;
+  --sunken: 239 237 232;
+  --line: 231 228 221;
+  --line-strong: 214 210 201;
+  --ink: 27 26 23;
+  --muted: 108 104 97;
+  --faint: 158 153 144;
+  --accent: 47 93 80;
+  --accent-ink: 255 255 255;
+  --accent-soft: 230 239 235;
+  --approve: 31 132 88;
+  --revise: 176 116 23;
+  --block: 192 64 56;
+  --escalate: 108 90 205;
+  --info: 43 108 176;
+  --shadow: 40 30 10;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: 14 14 13;
+  --surface: 22 22 20;
+  --subtle: 28 28 26;
+  --sunken: 33 33 30;
+  --line: 44 43 39;
+  --line-strong: 60 58 53;
+  --ink: 237 235 230;
+  --muted: 163 158 149;
+  --faint: 118 114 107;
+  --accent: 127 183 164;
+  --accent-ink: 14 24 20;
+  --accent-soft: 30 46 40;
+  --approve: 87 196 142;
+  --revise: 226 170 78;
+  --block: 236 112 100;
+  --escalate: 160 145 245;
+  --info: 110 165 230;
+  --shadow: 0 0 0;
+  color-scheme: dark;
+}
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body { @apply bg-bg text-ink font-sans text-[14px] leading-[1.55]; font-feature-settings: "ss01", "cv11"; }
+  ::selection { background: rgb(var(--accent) / 0.18); }
+  * { scrollbar-width: thin; scrollbar-color: rgb(var(--line-strong)) transparent; }
+  :focus-visible { outline: 2px solid rgb(var(--accent) / 0.6); outline-offset: 2px; border-radius: 6px; }
+  h1, h2, h3 { letter-spacing: -0.01em; }
+}
+
+@layer components {
+  .card { @apply bg-surface border border-line rounded-xl shadow-card; }
+  .hairline { @apply border-line; }
+  .label { @apply text-2xs uppercase tracking-[0.08em] text-faint font-medium; }
+  .num { font-variant-numeric: tabular-nums; }
+  .link { @apply text-accent hover:underline underline-offset-4 decoration-accent/40; }
+  .skeleton { @apply relative overflow-hidden bg-sunken rounded-md; }
+  .skeleton::after { content: ""; @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background: linear-gradient(90deg, transparent, rgb(var(--surface) / 0.6), transparent); }
+  .input { @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-[14px] text-ink placeholder:text-faint
+    transition-shadow focus:outline-none focus:border-accent/60 focus:shadow-ring; }
+  .code { @apply font-mono text-[12.5px] leading-[1.6]; }
+  .dotgrid { background-image: radial-gradient(rgb(var(--line-strong)) 1px, transparent 1px); background-size: 18px 18px; }
+}
+
+.font-display { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; letter-spacing: -0.01em; }
+
+/* Recharts text inherits the theme. */
+.recharts-text { fill: rgb(var(--faint)); font-size: 11px; }
+.recharts-cartesian-grid line { stroke: rgb(var(--line)); }

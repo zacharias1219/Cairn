@@ -1,0 +1,170 @@
+[
+  {
+    "rule_key": "refund_requires_verified_identity",
+    "name": "Refunds need a verified customer",
+    "description": "No refund is issued until the customer's identity is verified.",
+    "event": "tool_call", "tool": "issue_refund",
+    "condition": {"!": {"var": "customer.verified"}},
+    "outcome": "block", "severity": "critical",
+    "message": "I need to verify your identity before I can issue a refund.",
+    "fixtures": [
+      {"name": "unverified customer is blocked", "context": {"customer": {"verified": false}, "args": {"amount": 20}}, "expect": true},
+      {"name": "verified customer passes", "context": {"customer": {"verified": true}, "args": {"amount": 20}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "refund_window_30_days",
+    "name": "30-day refund window",
+    "description": "Refunds are only allowed within 30 days of delivery.",
+    "event": "tool_call", "tool": "issue_refund",
+    "condition": {">": [{"var": ["order.days_since_delivery", 0]}, 30]},
+    "outcome": "block", "severity": "high",
+    "message": "This order was delivered more than 30 days ago, so it's outside our 30-day refund window.",
+    "fixtures": [
+      {"name": "45 days is outside the window", "context": {"order": {"days_since_delivery": 45}}, "expect": true},
+      {"name": "30 days is inside the window", "context": {"order": {"days_since_delivery": 30}}, "expect": false},
+      {"name": "undelivered order is not blocked by this rule", "context": {"order": {"days_since_delivery": null}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "refund_over_100_requires_approval",
+    "name": "Refunds over $100 need human approval",
+    "description": "A refund above $100 waits for a named approver before it runs.",
+    "event": "tool_call", "tool": "issue_refund",
+    "condition": {">": [{"var": "args.amount"}, 100]},
+    "outcome": "require_approval", "severity": "high",
+    "message": "Refunds over $100 need a quick review from our team.",
+    "fixtures": [
+      {"name": "$249 needs approval", "context": {"args": {"amount": 249}}, "expect": true},
+      {"name": "$100 exactly does not", "context": {"args": {"amount": 100}}, "expect": false},
+      {"name": "$84 does not", "context": {"args": {"amount": 84}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "refund_hard_cap_500",
+    "name": "Hard cap of $500 per refund",
+    "description": "The agent can never refund more than $500 in one call, approval or not.",
+    "event": "tool_call", "tool": "issue_refund",
+    "condition": {">": [{"var": "args.amount"}, 500]},
+    "outcome": "block", "severity": "critical",
+    "message": "Refunds above $500 have to be handled by our team directly.",
+    "fixtures": [
+      {"name": "$750 is blocked", "context": {"args": {"amount": 750}}, "expect": true},
+      {"name": "$499 is not", "context": {"args": {"amount": 499}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "refund_within_balance",
+    "name": "Refund cannot exceed the refundable balance",
+    "description": "Blocks a refund larger than what is left to refund on the order.",
+    "event": "tool_call", "tool": "issue_refund",
+    "condition": {">": [{"var": "args.amount"}, {"-": [{"var": ["order.total", 0]}, {"var": ["order.refunded_amount", 0]}]}]},
+    "outcome": "block", "severity": "critical",
+    "message": "That's more than the refundable balance left on this order.",
+    "fixtures": [
+      {"name": "fully refunded order", "context": {"args": {"amount": 32}, "order": {"total": 32, "refunded_amount": 32}}, "expect": true},
+      {"name": "full refund of an unrefunded order", "context": {"args": {"amount": 84}, "order": {"total": 84, "refunded_amount": 0}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "order_must_belong_to_customer",
+    "name": "Changes only to the customer's own orders",
+    "description": "Write actions on an order require the verified customer to own it.",
+    "event": "tool_call", "tool": null,
+    "condition": {"and": [
+      {"in": [{"var": "tool"}, ["issue_refund", "update_shipping_address"]]},
+      {"!!": {"var": "order.customer_email"}},
+      {"!=": [{"lower": {"var": "order.customer_email"}}, {"lower": {"var": "customer.email"}}]}
+    ]},
+    "outcome": "block", "severity": "critical",
+    "message": "I can only make changes to orders on your own account.",
+    "fixtures": [
+      {"name": "another customer's order", "context": {"tool": "issue_refund", "order": {"customer_email": "sam.patel@example.com"}, "customer": {"email": "maya.chen@example.com"}}, "expect": true},
+      {"name": "own order, different case", "context": {"tool": "issue_refund", "order": {"customer_email": "Maya.Chen@example.com"}, "customer": {"email": "maya.chen@example.com"}}, "expect": false},
+      {"name": "reads are not affected", "context": {"tool": "lookup_order", "order": {"customer_email": "sam.patel@example.com"}, "customer": {"email": "maya.chen@example.com"}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "no_cancellation_before_verified_identity",
+    "name": "No cancellation before identity is verified",
+    "description": "Memberships can only be cancelled for a verified customer.",
+    "event": "tool_call", "tool": "cancel_subscription",
+    "condition": {"!": {"var": "customer.verified"}},
+    "outcome": "block", "severity": "critical",
+    "message": "I need to verify your identity before I can cancel the membership.",
+    "fixtures": [
+      {"name": "unverified is blocked", "context": {"customer": {"verified": false}}, "expect": true},
+      {"name": "verified passes", "context": {"customer": {"verified": true}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "address_change_only_before_shipping",
+    "name": "Address changes only before shipping",
+    "description": "Shipping addresses can be changed only while the order is processing.",
+    "event": "tool_call", "tool": "update_shipping_address",
+    "condition": {"!=": [{"var": "order.status"}, "processing"]},
+    "outcome": "block", "severity": "high",
+    "message": "This order has already left our warehouse, so its address can't be changed here. The carrier can redirect it using the tracking number.",
+    "fixtures": [
+      {"name": "shipped order is blocked", "context": {"order": {"status": "shipped"}}, "expect": true},
+      {"name": "processing order passes", "context": {"order": {"status": "processing"}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "goodwill_credit_cap_25",
+    "name": "Goodwill credit capped at $25",
+    "description": "Store credit above $25 is never issued by the agent.",
+    "event": "tool_call", "tool": "apply_goodwill_credit",
+    "condition": {">": [{"var": "args.amount"}, 25]},
+    "outcome": "block", "severity": "high",
+    "message": "I'm not able to add that much store credit.",
+    "fixtures": [
+      {"name": "$50 is blocked", "context": {"args": {"amount": 50}}, "expect": true},
+      {"name": "$20 passes", "context": {"args": {"amount": 20}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "outside_agent_writes_need_consent",
+    "name": "Outside agents need a signed-in customer to write",
+    "description": "A personal agent may only change things for a customer who signed in and consented.",
+    "event": "tool_call", "tool": null,
+    "condition": {"and": [
+      {"var": "conversation.outside_agent"},
+      {"in": [{"var": "tool"}, ["issue_refund", "cancel_subscription", "update_shipping_address", "apply_goodwill_credit"]]},
+      {"!": {"var": "customer.verified"}}
+    ]},
+    "outcome": "block", "severity": "critical",
+    "message": "Changes made by a personal agent need the customer to sign in and grant write access first.",
+    "fixtures": [
+      {"name": "guest agent write is blocked", "context": {"conversation": {"outside_agent": true}, "tool": "issue_refund", "customer": {"verified": false}}, "expect": true},
+      {"name": "consented agent write passes", "context": {"conversation": {"outside_agent": true}, "tool": "issue_refund", "customer": {"verified": true}}, "expect": false},
+      {"name": "guest agent read passes", "context": {"conversation": {"outside_agent": true}, "tool": "lookup_order", "customer": {"verified": false}}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "reply_no_legal_or_medical_advice",
+    "name": "No legal or medical advice in replies",
+    "description": "Blocks replies that give legal or medical advice.",
+    "event": "reply", "tool": null,
+    "condition": {"contains_any": [{"var": "reply"}, ["legal advice", "you should sue", "medical advice", "you should see a doctor about"]]},
+    "outcome": "block", "severity": "high",
+    "message": "Replies may not give legal or medical advice.",
+    "fixtures": [
+      {"name": "legal advice is blocked", "context": {"reply": "My legal advice is that you should sue the carrier."}, "expect": true},
+      {"name": "ordinary reply passes", "context": {"reply": "Your refund has been issued."}, "expect": false}
+    ]
+  },
+  {
+    "rule_key": "reply_no_payment_card_requests",
+    "name": "Never ask for card details",
+    "description": "Card details are captured only by the payment processor's hosted fields.",
+    "event": "reply", "tool": null,
+    "condition": {"matches": [{"var": "reply"}, "(card number|cvv|cvc|security code|expiry date|expiration date)"]},
+    "outcome": "block", "severity": "critical",
+    "message": "The agent must never ask for payment card details.",
+    "fixtures": [
+      {"name": "asking for CVV is blocked", "context": {"reply": "Please send your card number and CVV."}, "expect": true},
+      {"name": "mentioning the payment method passes", "context": {"reply": "It goes back to your original payment method."}, "expect": false}
+    ]
+  }
+]

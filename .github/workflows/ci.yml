@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend, acceptance tests and release gates
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          # Throwaway database on the runner: trust auth, so no credential lives in the repo.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: cairn
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-retries 30
+    env:
+      CAIRN_MODEL_MODE: sandbox
+      CAIRN_DATABASE_URL: postgresql://cairn_app@localhost:5432/cairn
+      CAIRN_ADMIN_DATABASE_URL: postgresql://postgres@localhost:5432/cairn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install -e "./backend[dev]"
+      - name: Acceptance tests (one per PRD criterion)
+        working-directory: backend
+        run: pytest -q
+      - name: Release gates (F12) — a failing critical case blocks the merge
+        working-directory: backend
+        run: |
+          cairn db migrate
+          cairn seed
+          cairn eval run
+
+  console:
+    name: Console typecheck and build
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: console } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: console/package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  widget:
+    name: Widget build and size budget
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: widget } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build   # fails if the bundle exceeds 60 KB gzipped

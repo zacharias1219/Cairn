@@ -1,0 +1,14 @@
+{
+  "name": "cairn-widget",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cairn web chat widget: one script tag, no framework.",
+  "scripts": {
+    "build": "esbuild src/widget.ts --bundle --minify --target=es2019 --format=iife --outfile=dist/cairn-widget.js && node scripts/size.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "typescript": "5.9.3"
+  }
+}
