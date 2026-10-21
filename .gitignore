@@ -218,3 +218,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Cairn
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+.env.local
+!widget/dist/
+!console/lib/
+.cairn-dev-keys.json
+.env.local
